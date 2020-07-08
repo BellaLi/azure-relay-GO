@@ -7,17 +7,17 @@ import (
 	"strconv"
 )
 
-// HycoServer is a simple listener
-type HycoServer interface {
+// HttpListener is a simple listener
+type HttpListener interface {
 	Start()
 }
 
-type hycoServer struct {
+type httpListener struct {
 	Address string
 	Port    int
 }
 
-func (server hycoServer) Start() {
+func (server httpListener) Start() {
 	fmt.Printf("Entering Start...\n")
 	fmt.Printf("Now listening on %s:%d \n", server.Address, server.Port)
 	http.HandleFunc("/", httpReqHandler)

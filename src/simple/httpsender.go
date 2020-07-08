@@ -7,16 +7,16 @@ import (
 	"net/http"
 )
 
-// HycoClient is a simple client
-type HycoClient interface {
+// HttpSender is a simple client
+type HttpSender interface {
 	SendRequest() (*[]byte, error)
 }
 
-type hycoClient struct {
+type httpSender struct {
 	url string
 }
 
-func (c hycoClient) SendRequest() (*[]byte, error) {
+func (c httpSender) SendRequest() (*[]byte, error) {
 	fmt.Printf("Entering SendRequest ... \n")
 
 	req, err := http.NewRequest("GET", c.url, nil)

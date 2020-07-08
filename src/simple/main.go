@@ -12,12 +12,12 @@ func main() {
 	var arg2 = args[2]
 
 	if arg1 == "http" && arg2 == "sender" {
-		targeturl := "https://examplse.com"
+		targeturl := "http://localhost:8080"
 
 		fmt.Printf("Access %s \n", targeturl)
 
-		var client HycoClient
-		client = hycoClient{targeturl}
+		var client HttpSender
+		client = httpSender{targeturl}
 		resp, err := client.SendRequest()
 
 		if err != nil {
@@ -26,8 +26,8 @@ func main() {
 			fmt.Printf("%s", resp)
 		}
 	} else if arg1 == "http" && arg2 == "listener" {
-		var server HycoServer
-		server = hycoServer{"localhost", 8080}
+		var server HttpListener
+		server = httpListener{"localhost", 8080}
 		server.Start()
 	} else {
 		fmt.Printf("Cannot recognize '%s' and '%s'", arg1, arg2)
