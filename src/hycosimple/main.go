@@ -30,7 +30,7 @@ func main() {
 		server = hycoServer{"localhost", 8080}
 		server.Start()
 	} else {
-		fmt.Printf("Cannot recognize %s and %s", arg1, arg2)
+		fmt.Printf("Cannot recognize '%s' and '%s'", arg1, arg2)
 	}
 
 }
