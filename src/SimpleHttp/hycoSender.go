@@ -29,10 +29,11 @@ type HYCOSender interface {
 }
 
 type hycoSender struct {
-	ns      string
-	path    string
-	keyrule string
-	key     string
+	ns                 string
+	path               string
+	keyrule            string
+	key                string
+	clientAuthRequired bool
 }
 
 func (hyco hycoSender) GetRelayHTTPSURI(correlationID string) string {
@@ -77,7 +78,10 @@ func (hyco hycoSender) SendRequest(method, body, sasToken string) (*[]byte, erro
 	if sasToken == "" {
 		sasToken = hyco.CreateRelaySASToken()
 	}
-	req.Header.Add("ServiceBusAuthorization", sasToken)
+
+	if hyco.clientAuthRequired {
+		req.Header.Add("ServiceBusAuthorization", sasToken)
+	}
 	req.Header.Add("content-type", "application/json; charset=utf-8")
 
 	client := &http.Client{}

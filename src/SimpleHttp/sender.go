@@ -7,10 +7,11 @@ import (
 func main() {
 	var client HYCOSender
 	client = hycoSender{
-		ns:      "gorelay.servicebus.windows.net",
-		path:    "yesclientauth",
-		keyrule: "managepolicy",
-		key:     "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE="}
+		ns:                 "gorelay.servicebus.windows.net",
+		path:               "yesclientauth", //"noclientauth",
+		keyrule:            "managepolicy",
+		key:                "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE=", // "GYx32+NyDOXroUaDpflfhlAz/FeioiRsV6IqCb5oDZs=", //
+		clientAuthRequired: true}
 
 	sasToken := client.CreateRelaySASToken()
 	uri := client.GetRelayHTTPSURI("")
