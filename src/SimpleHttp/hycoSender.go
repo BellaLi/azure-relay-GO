@@ -1,59 +1,114 @@
-// Copyright 2015 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// +build ignore
-
 package main
 
 import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-// HYCOWSSender is a simple websocket sending client
-type HYCOWSSender interface {
+// HYCOSender is a simple sending client
+type HYCOSender interface {
+	GetRelayHTTPSURI(correlationID string) string
 	GetRelayWSURI(correlationID string) string
 	CreateRelaySASToken() string
+	SendRequest(method, body, sasToken string) (*[]byte, error)
 	ConnectRelayWS(sasToken string)
 }
 
-type hycoWSSender struct {
+type hycoSender struct {
 	ns      string
 	path    string
 	keyrule string
 	key     string
 }
 
-func main() {
-	log.SetFlags(0)
+func (hyco hycoSender) GetRelayHTTPSURI(correlationID string) string {
+	var query string
+	if correlationID != "" {
+		query = "sb-hc-id=" + correlationID
+	}
 
-	var client HYCOWSSender
-	client = hycoWSSender{
-		ns:      "gorelay.servicebus.windows.net",
-		path:    "yesclientauth",
-		keyrule: "managepolicy",
-		key:     "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE="}
-
-	sasToken := client.CreateRelaySASToken()
-	client.ConnectRelayWS(sasToken)
+	u := url.URL{Scheme: "https", Host: hyco.ns, Path: hyco.path, RawQuery: query}
+	fmt.Println(u.String())
+	return u.String()
 }
 
-func (sender hycoWSSender) ConnectRelayWS(sasToken string) {
+func (hyco hycoSender) GetRelayWSURI(correlationID string) string {
+	query := "sb-hc-action=connect"
+	if correlationID != "" {
+		query = "&sb-hc-id=" + correlationID
+	}
+
+	u := url.URL{Scheme: "wss", Host: hyco.ns + ":443", Path: "$hc/" + hyco.path, RawQuery: query}
+	fmt.Println(u.String())
+	return u.String()
+}
+
+func (hyco hycoSender) SendRequest(method, body, sasToken string) (*[]byte, error) {
+	fmt.Println("Entering SendRequest ...")
+	uri := hyco.GetRelayHTTPSURI("")
+
+	var bodyIO io.Reader
+	if body == "" {
+		bodyIO = nil
+	} else {
+		bodyIO = strings.NewReader(body)
+	}
+
+	req, err := http.NewRequest(method, uri, bodyIO)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return nil, err
+	}
+
+	if sasToken == "" {
+		sasToken = hyco.CreateRelaySASToken()
+	}
+	req.Header.Add("ServiceBusAuthorization", sasToken)
+	req.Header.Add("content-type", "application/json; charset=utf-8")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Get on %s failed. Details: %s \n", uri, err.Error())
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Get on %s failed with status %d \n", uri, resp.StatusCode)
+		return nil, errors.New("unable to connect")
+	}
+
+	defer resp.Body.Close()
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Unable to read response body %s \n", err.Error())
+		return nil, err
+	}
+
+	fmt.Println("Exit SendRequest.")
+	return &respBody, nil
+}
+
+func (hyco hycoSender) ConnectRelayWS(sasToken string) {
+	fmt.Println("Entering ConnectRelayWS ...")
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	u := sender.GetRelayWSURI("")
+	u := hyco.GetRelayWSURI("")
 	log.Printf("connecting to %s", u)
 
 	header := http.Header{}
@@ -111,19 +166,8 @@ func (sender hycoWSSender) ConnectRelayWS(sasToken string) {
 	}
 }
 
-func (c hycoWSSender) GetRelayWSURI(correlationID string) string {
-	query := "sb-hc-action=connect"
-	if correlationID != "" {
-		query = "&sb-hc-id=" + correlationID
-	}
-
-	u := url.URL{Scheme: "wss", Host: c.ns + ":443", Path: "$hc/" + c.path, RawQuery: query}
-	fmt.Println(u.String())
-	return u.String()
-}
-
-func (c hycoWSSender) CreateRelaySASToken() string {
-	var uri = url.URL{Scheme: "http", Host: c.ns, Path: c.path}
+func (hyco hycoSender) CreateRelaySASToken() string {
+	var uri = url.URL{Scheme: "http", Host: hyco.ns, Path: hyco.path}
 	escapedURI := url.QueryEscape(uri.String())
 	fmt.Println("esapedURI: " + escapedURI)
 
@@ -134,9 +178,9 @@ func (c hycoWSSender) CreateRelaySASToken() string {
 	// The string-to-sign is a unique string constructed from the fields that must be verified in order to authorize the request.
 	// The signature is an HMAC computed over the string-to-sign and key using the SHA256 algorithm, and then encoded using Base64 encoding.
 	var stringToSign = escapedURI + "\n" + unixSecStr
-	var signature = encrypt(c.key, stringToSign)
+	var signature = encrypt(hyco.key, stringToSign)
 
-	token := "SharedAccessSignature sr=" + escapedURI + "&sig=" + url.QueryEscape(signature) + "&se=" + unixSecStr + "&skn=" + c.keyrule
+	token := "SharedAccessSignature sr=" + escapedURI + "&sig=" + url.QueryEscape(signature) + "&se=" + unixSecStr + "&skn=" + hyco.keyrule
 	fmt.Println("token: " + token)
 
 	return token
