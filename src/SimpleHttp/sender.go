@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -16,7 +17,8 @@ import (
 // HYCOSender is a simple sending client
 type HYCOSender interface {
 	GetRelayHTTPSURI() string
-	SendRequest() (*[]byte, error)
+	CreateRelaySASToken() string
+	SendRequest(method, body, sasToken string) (*[]byte, error)
 }
 
 type hycoSender struct {
@@ -26,51 +28,59 @@ type hycoSender struct {
 	key     string
 }
 
+func main() {
+	var client HYCOSender
+	client = hycoSender{
+		ns:      "gorelay.servicebus.windows.net",
+		path:    "yesclientauth",
+		keyrule: "managepolicy",
+		key:     "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE="}
+
+	sasToken := client.CreateRelaySASToken()
+	// try GET
+	resp, err := client.SendRequest("GET", "", sasToken)
+	if err != nil {
+		fmt.Printf("Get on %s failed. Details: %s", client.GetRelayHTTPSURI(), err.Error())
+	} else {
+		fmt.Printf("%s", resp)
+	}
+
+	// try POST
+	resp, err = client.SendRequest("POST", "Hey Jude!", sasToken)
+	if err != nil {
+		fmt.Printf("POST on %s failed. Details: %s", client.GetRelayHTTPSURI(), err.Error())
+	} else {
+		fmt.Printf("%s", resp)
+	}
+}
+
 func (c hycoSender) GetRelayHTTPSURI() string {
 	var uri = "https://" + c.ns + "/" + c.path
 	return uri
 }
 
-func (c hycoSender) createRelayToken() string {
-	var uri = c.GetRelayHTTPSURI()
-	uri = strings.Replace(uri, "https", "http", 1)
-	var unixSeconds = time.Now().Add(3600 * time.Second).Unix()
-
-	escapedURI := url.QueryEscape(uri)
-
-	// The string-to-sign is a unique string constructed from the fields that must be verified in order to authorize the request.
-	// The signature is an HMAC computed over the string-to-sign and key using the SHA256 algorithm, and then encoded using Base64 encoding.
-	var stringToSign = url.QueryEscape(uri) + "\n" + fmt.Sprintf("%v", unixSeconds)
-	var signature = encrypt(c.key, stringToSign)
-
-	token := "SharedAccessSignature sr=" + escapedURI + "&sig=" + url.QueryEscape(signature) + "&se=" + fmt.Sprintf("%v", unixSeconds) + "&skn=" + c.keyrule
-	fmt.Println("token: " + token)
-	fmt.Println("esapedURI: " + escapedURI)
-
-	return token
-}
-
-func encrypt(key string, stringToSign string) string {
-	fmt.Println("key: ", key)
-	fmt.Println("stingToSign: ", stringToSign)
-
-	sig := hmac.New(sha256.New, []byte(key))
-	sig.Write([]byte(stringToSign))
-	sigBytes := sig.Sum(nil)
-
-	return base64.StdEncoding.EncodeToString(sigBytes)
-}
-
-func (c hycoSender) SendRequest() (*[]byte, error) {
+func (c hycoSender) SendRequest(method, body, sasToken string) (*[]byte, error) {
 	fmt.Printf("Entering SendRequest ... \n")
 	uri := c.GetRelayHTTPSURI()
-	req, err := http.NewRequest("GET", uri, nil)
-	req.Header.Add("ServiceBusAuthorization", c.createRelayToken())
 
+	var bodyIO io.Reader
+	if body == "" {
+		bodyIO = nil
+	} else {
+		bodyIO = strings.NewReader(body)
+	}
+
+	req, err := http.NewRequest(method, uri, bodyIO)
 	if err != nil {
 		fmt.Printf(err.Error())
 		return nil, err
 	}
+
+	if sasToken == "" {
+		sasToken = c.CreateRelaySASToken()
+	}
+	req.Header.Add("ServiceBusAuthorization", sasToken)
+	req.Header.Add("content-type", "application/json; charset=utf-8")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -85,24 +95,44 @@ func (c hycoSender) SendRequest() (*[]byte, error) {
 	}
 
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Unable to read response body %s \n", err.Error())
 		return nil, err
 	}
 
 	fmt.Printf("Exit SendRequest. \n")
-	return &body, nil
+	return &respBody, nil
 }
 
-func main() {
-	var client HYCOSender
-	client = hycoSender{ns: "gorelay.servicebus.windows.net", path: "yesclientauth", keyrule: "managepolicy", key: "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE="}
-	resp, err := client.SendRequest()
+func (c hycoSender) CreateRelaySASToken() string {
+	var uri = c.GetRelayHTTPSURI()
+	uri = strings.Replace(uri, "https", "http", 1)
+	escapedURI := url.QueryEscape(uri)
+	fmt.Println("esapedURI: " + escapedURI)
 
-	if err != nil {
-		fmt.Printf("Get on %s failed. Details: %s", client.GetRelayHTTPSURI(), err.Error())
-	} else {
-		fmt.Printf("%s", resp)
-	}
+	var unixSeconds = time.Now().Add(3600 * time.Second).Unix()
+	var unixSecStr = fmt.Sprintf("%v", unixSeconds)
+	fmt.Println("unixSeconds: " + unixSecStr)
+
+	// The string-to-sign is a unique string constructed from the fields that must be verified in order to authorize the request.
+	// The signature is an HMAC computed over the string-to-sign and key using the SHA256 algorithm, and then encoded using Base64 encoding.
+	var stringToSign = escapedURI + "\n" + unixSecStr
+	var signature = encrypt(c.key, stringToSign)
+
+	token := "SharedAccessSignature sr=" + escapedURI + "&sig=" + url.QueryEscape(signature) + "&se=" + unixSecStr + "&skn=" + c.keyrule
+	fmt.Println("token: " + token)
+
+	return token
+}
+
+func encrypt(key string, stringToSign string) string {
+	fmt.Println("key: ", key)
+	fmt.Println("stingToSign: ", stringToSign)
+
+	sig := hmac.New(sha256.New, []byte(key))
+	sig.Write([]byte(stringToSign))
+	sigBytes := sig.Sum(nil)
+
+	return base64.StdEncoding.EncodeToString(sigBytes)
 }
