@@ -16,7 +16,7 @@ import (
 
 // HYCOSender is a simple sending client
 type HYCOSender interface {
-	GetRelayHTTPSURI() string
+	GetRelayHTTPSURI(correlationID string) string
 	CreateRelaySASToken() string
 	SendRequest(method, body, sasToken string) (*[]byte, error)
 }
@@ -37,10 +37,11 @@ func main() {
 		key:     "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE="}
 
 	sasToken := client.CreateRelaySASToken()
+	uri := client.GetRelayHTTPSURI("")
 	// try GET
 	resp, err := client.SendRequest("GET", "", sasToken)
 	if err != nil {
-		fmt.Printf("Get on %s failed. Details: %s", client.GetRelayHTTPSURI(), err.Error())
+		fmt.Printf("Get on %s failed. Details: %s", uri, err.Error())
 	} else {
 		fmt.Printf("%s", resp)
 	}
@@ -48,20 +49,26 @@ func main() {
 	// try POST
 	resp, err = client.SendRequest("POST", "Hey Jude!", sasToken)
 	if err != nil {
-		fmt.Printf("POST on %s failed. Details: %s", client.GetRelayHTTPSURI(), err.Error())
+		fmt.Printf("POST on %s failed. Details: %s", uri, err.Error())
 	} else {
 		fmt.Printf("%s", resp)
 	}
 }
 
-func (c hycoSender) GetRelayHTTPSURI() string {
-	var uri = "https://" + c.ns + "/" + c.path
-	return uri
+func (c hycoSender) GetRelayHTTPSURI(correlationID string) string {
+	var query string
+	if correlationID != "" {
+		query = "sb-hc-id=" + correlationID
+	}
+
+	u := url.URL{Scheme: "https", Host: c.ns, Path: c.path, RawQuery: query}
+	fmt.Println(u.String())
+	return u.String()
 }
 
 func (c hycoSender) SendRequest(method, body, sasToken string) (*[]byte, error) {
 	fmt.Printf("Entering SendRequest ... \n")
-	uri := c.GetRelayHTTPSURI()
+	uri := c.GetRelayHTTPSURI("")
 
 	var bodyIO io.Reader
 	if body == "" {
@@ -106,7 +113,7 @@ func (c hycoSender) SendRequest(method, body, sasToken string) (*[]byte, error) 
 }
 
 func (c hycoSender) CreateRelaySASToken() string {
-	var uri = c.GetRelayHTTPSURI()
+	var uri = c.GetRelayHTTPSURI("")
 	uri = strings.Replace(uri, "https", "http", 1)
 	escapedURI := url.QueryEscape(uri)
 	fmt.Println("esapedURI: " + escapedURI)
