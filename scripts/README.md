@@ -1,0 +1,1 @@
+The scripts package is used to store the scripts, compiling, testing and analysis file.

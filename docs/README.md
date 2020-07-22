@@ -1,0 +1,1 @@
+This docs package is used to store the documents file.

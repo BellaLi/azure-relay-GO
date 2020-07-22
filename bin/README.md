@@ -1,0 +1,1 @@
+The bin package is used to store the exe file.

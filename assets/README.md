@@ -1,0 +1,1 @@
+The assets package is used to store dependency static resources.

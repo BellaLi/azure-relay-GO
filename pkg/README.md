@@ -1,0 +1,1 @@
+The pkg package is used to store the file that can be used by project.

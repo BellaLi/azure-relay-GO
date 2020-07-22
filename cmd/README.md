@@ -1,0 +1,1 @@
+The cmd package is used to store the main function and exe file created by main function.
