@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -143,15 +144,42 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 			Accept  inner
 		}
 		var header outer
+
+		mt, message, err := c.ReadMessage()
+		err = json.Unmarshal(message, &header)
+		if err != nil {
+			return errors.New("Unable to decode request header. " + err.Error())
+		}
+
+		/*
+			{"request":{"address":"wss://g12-prod-by3-010-sb.servicebus.windows.net/$hc/yesclientauth?sb-hc-action=request&sb-hc-id=c126fddd-5ca6-430f-9b10-e2188d1ed0d4_G12",
+			"id":"c126fddd-5ca6-430f-9b10-e2188d1ed0d4_G12","requestTarget":"/yesclientauth","method":"POST","remoteEndpoint":{"address":"73.83.210.109","port":62915},
+			"requestHeaders":{"Content-Type":"application/json; charset=utf-8","Accept-Encoding":"gzip","Host":"gorelay.servicebus.windows.net","User-Agent":"Go-http-client/1.1","Via":"1.1 gorelay.servicebus.windows.net"},"body":true}}
+		*/
 		requestId := header.Request.Id
 
-		_, message, err := c.ReadMessage()
+		if requestId == "" {
+			/*
+				{"accept":{"address":"wss:\/\/g17-prod-by3-010-sb.servicebus.windows.net\/$hc\/yesclientauth?sb-hc-action=accept&sb-hc-id=ca496b91-f5a3-4761-8eda-9a66dd9a2558_G17_G30",
+				"id":"ca496b91-f5a3-4761-8eda-9a66dd9a2558_G17_G30","connectHeaders":{"Sec-WebSocket-Key":"NsoFiXBuR3i2nE8Tx0+maA==","Sec-WebSocket-Version":"13","Connection":"Upgrade",
+				"Upgrade":"websocket","Host":"gorelay.servicebus.windows.net:443","User-Agent":"Go-http-client\/1.1"},"remoteEndpoint":{"address":"73.83.210.109","port":62917}}}
+			*/
+			requestId = header.Accept.Id
+		}
+
 		if err != nil {
 			fmt.Println("read:", err)
 			return nil
 		}
-		fmt.Println("Recv: " + string(message[:]))
-		var resp = `{"response":{"requestId":"` + requestId + `","statusCode":"200","responseHeaders":{},"body":true,"content":"message"}}`
+
+		if mt == websocket.TextMessage {
+			fmt.Println("Recv TextMessage: " + string(message[:]))
+		} else {
+			fmt.Printf("Recv Type: %d. Message: %s", mt, string(message[:]))
+		}
+
+		// todo: this response doesn't work well. need to figure out what to response for Accept message & for http requests
+		var resp = `{"response":{"requestId":"` + requestId + `","statusCode":"200","responseHeaders":{"Content-Type":"application/json; charset=utf-8"},"body":false}}`
 		respQ <- resp
 	}
 }
