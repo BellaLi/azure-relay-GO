@@ -21,7 +21,7 @@ type hycoListener struct {
 }
 
 func (listenerClient hycoListener) createRelayListsenURI() string {
-	var uri = "https://" + listenerClient.ns + "/" + listenerClient.path
+	var uri = "wss://" + listenerClient.ns + "/" + listenerClient.path
 	return uri
 }
 
@@ -49,7 +49,7 @@ func httpReqHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	var listenClient HYCOListener
-	listenClient = hycoListener{ns: "gorelay.servicebus.windows.net", path: "noclientauth", keyrule: "managepolicy", key: "GYx32+NyDOXroUaDpflfhlAz/FeioiRsV6IqCb5oDZs="}
+	listenClient = hycoListener{ns: "gorelay.servicebus.windows.net:433", path: "$hc/yesclientauth?sb-hc-action=listen", keyrule: "managepolicy", key: "GYx32+NyDOXroUaDpflfhlAz/FeioiRsV6IqCb5oDZs="}
 	
 	// Accept connections in :8080
 	if err := http.ListenAndServe(":8080", nil); err != nil {

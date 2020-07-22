@@ -38,7 +38,7 @@ func (hyco HycoListener) GetRelayListenerURI(correlationID string) string {
 	return u.String()
 }
 
-// CreateRelaySASToken is a function to get listener uri
+// CreateRelaySASToken is a function to create SAS token in listener
 func (hyco HycoListener) CreateRelaySASToken() string {
 	var uri = url.URL{Scheme: "http", Host: hyco.NS, Path: hyco.Path}
 	escapedURI := url.QueryEscape(uri.String())
