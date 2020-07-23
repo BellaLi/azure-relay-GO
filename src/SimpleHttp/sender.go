@@ -21,7 +21,11 @@ func main() {
 	if err != nil {
 		fmt.Printf("Get on %s failed. Details: %s", uri, err.Error())
 	} else {
-		fmt.Printf("%s", resp)
+		if resp == nil {
+			fmt.Printf("GET Response is empty!")
+		} else {
+			fmt.Printf("%s", resp)
+		}
 	}
 
 	// try http POST
@@ -29,6 +33,10 @@ func main() {
 	if err != nil {
 		fmt.Printf("POST on %s failed. Details: %s", uri, err.Error())
 	} else {
-		fmt.Printf("%s", resp)
+		if resp == nil {
+			fmt.Printf("POST Response is empty!")
+		} else {
+			fmt.Printf("%s", resp)
+		}
 	}
 }
