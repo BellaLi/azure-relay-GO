@@ -14,16 +14,31 @@ import (
 )
 
 type acceptInner struct {
-	ID      string
-	Address string
+	ID             string         `json:"id"`
+	Address        string         `json:"address"`
+	ConnectHeaders connectHeaders `json:"connectHeaders"`
+	RemoteEndpoint string         `json:"remoteEndpoint"`
 }
+
+// {"Sec-WebSocket-Key":"NsoFiXBuR3i2nE8Tx0+maA==","Sec-WebSocket-Version":"13","Connection":"Upgrade","Upgrade":"websocket",
+// "Host":"gorelay.servicebus.windows.net:443","User-Agent":"Go-http-client\/1.1"}
+type connectHeaders struct {
+	SecWebSocketKey     string `json:"Sec-WebSocket-Key"`
+	SecWebSocketVersion string `json:"Sec-WebSocket-Version"`
+	Connection          string `json:"Connection"`
+	Upgrade             string `json:"Upgrade"`
+	Host                string `json:"Host"`
+	UserAgent           string `json:"User-Agent"`
+}
+
 type requestInner struct {
-	ID            string
-	Address       string
-	Method        string
-	RequestTarget string
-	Body          bool
+	ID            string `json:"id"`
+	Address       string `json:"address"`
+	Method        string `json:"method"`
+	RequestTarget string `json:"requestTarget"`
+	Body          bool   `json:"body"`
 }
+
 type outer struct {
 	Request requestInner
 	Accept  acceptInner
@@ -35,9 +50,10 @@ type respEvent struct {
 }
 
 var relay HycoListener
+var wsConnections map[string]*websocket.Conn
 
 func startListener(ctx context.Context) {
-	c, hcID, _, err := relayConnect(ctx)
+	c, hcID, _, err := relayConnect(ctx, nil)
 	if err != nil {
 		fmt.Printf("Unable to connect to relay. %s \n", err.Error())
 	}
@@ -47,17 +63,41 @@ func startListener(ctx context.Context) {
 	fmt.Printf("recieveMessages Error: %s", err.Error())
 }
 
-func relayConnect(ctx context.Context) (con *websocket.Conn, hcID string, httpStatus int, err error) {
+func acceptClient(ctx context.Context, acceptMsg *acceptInner) {
+	if wsConnections[acceptMsg.ID] != nil {
+		fmt.Printf("Error: Connection to %s already exists! \n", acceptMsg.ID)
+		return
+	}
+
+	c, hcID, _, err := relayConnect(ctx, acceptMsg)
+	if err != nil {
+		fmt.Printf("Unable to accept: %s \n", err.Error())
+	}
+	wsConnections[acceptMsg.ID] = c
+	fmt.Printf("Connected to %s \n", acceptMsg.ID)
+
+	err = recieveMessages(ctx, c, hcID)
+	fmt.Printf("recieveMessages Error: %s \n", err.Error())
+}
+
+func relayConnect(ctx context.Context, acceptMsg *acceptInner) (con *websocket.Conn, hcID string, httpStatus int, err error) {
 	var httpResp *http.Response
 	httpStatus = -1
-
-	hcID = uuid.New().String()
-	u := relay.GetRelayListenerURI(hcID)
+	var u string
 
 	headers := make(http.Header)
 	sbaHeaderName := "ServiceBusAuthorization"
 	sbaHeaderValue := relay.CreateRelaySASToken()
 	headers[sbaHeaderName] = []string{sbaHeaderValue}
+
+	if acceptMsg == nil {
+		hcID = uuid.New().String()
+		u = relay.GetRelayListenerURI(hcID)
+	} else {
+		u = acceptMsg.Address
+		headers["Sec-WebSocket-Key"] = []string{acceptMsg.ConnectHeaders.SecWebSocketKey}
+		headers["Sec-WebSocket-Version"] = []string{acceptMsg.ConnectHeaders.SecWebSocketVersion}
+	}
 
 	con, httpResp, err = websocket.DefaultDialer.DialContext(ctx, u, headers)
 	if err != nil {
@@ -177,9 +217,12 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 
 		if header.Accept.ID != "" {
 			/* websocket sample
-			{"accept":{"address":"wss:\/\/g17-prod-by3-010-sb.servicebus.windows.net\/$hc\/yesclientauth?sb-hc-action=accept&sb-hc-id=ca496b91-f5a3-4761-8eda-9a66dd9a2558_G17_G30",
-			"id":"ca496b91-f5a3-4761-8eda-9a66dd9a2558_G17_G30","connectHeaders":{"Sec-WebSocket-Key":"NsoFiXBuR3i2nE8Tx0+maA==","Sec-WebSocket-Version":"13","Connection":"Upgrade",
-			"Upgrade":"websocket","Host":"gorelay.servicebus.windows.net:443","User-Agent":"Go-http-client\/1.1"},"remoteEndpoint":{"address":"73.83.210.109","port":62917}}}
+			{"accept":{
+				"address":"wss:\/\/g17-prod-by3-010-sb.servicebus.windows.net\/$hc\/yesclientauth?sb-hc-action=accept&sb-hc-id=ca496b91-f5a3-4761-8eda-9a66dd9a2558_G17_G30",
+				"id":"ca496b91-f5a3-4761-8eda-9a66dd9a2558_G17_G30",
+				"connectHeaders":{"Sec-WebSocket-Key":"NsoFiXBuR3i2nE8Tx0+maA==","Sec-WebSocket-Version":"13","Connection":"Upgrade","Upgrade":"websocket","Host":"gorelay.servicebus.windows.net:443","User-Agent":"Go-http-client\/1.1"},
+				"remoteEndpoint":{"address":"73.83.210.109","port":62917}
+			}}
 			*/
 
 			//todo: handle Accept
