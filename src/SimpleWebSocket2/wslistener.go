@@ -17,7 +17,6 @@ type acceptInner struct {
 	ID             string         `json:"id"`
 	Address        string         `json:"address"`
 	ConnectHeaders connectHeaders `json:"connectHeaders"`
-	RemoteEndpoint string         `json:"remoteEndpoint"`
 }
 
 // {"Sec-WebSocket-Key":"NsoFiXBuR3i2nE8Tx0+maA==","Sec-WebSocket-Version":"13","Connection":"Upgrade","Upgrade":"websocket",
@@ -71,13 +70,14 @@ func acceptClient(ctx context.Context, acceptMsg *acceptInner) {
 
 	c, hcID, _, err := relayConnect(ctx, acceptMsg)
 	if err != nil {
-		fmt.Printf("Unable to accept: %s \n", err.Error())
+		fmt.Printf("[%s] Unable to accept: %s \n", acceptMsg.ID, err.Error())
 	}
+
 	wsConnections[acceptMsg.ID] = c
-	fmt.Printf("Connected to %s \n", acceptMsg.ID)
+	fmt.Printf("[%s] Connected. \n", acceptMsg.ID)
 
 	err = recieveMessages(ctx, c, hcID)
-	fmt.Printf("recieveMessages Error: %s \n", err.Error())
+	fmt.Printf("[%s] recieveMessages Error: %s \n", acceptMsg.ID, err.Error())
 }
 
 func relayConnect(ctx context.Context, acceptMsg *acceptInner) (con *websocket.Conn, hcID string, httpStatus int, err error) {
@@ -225,7 +225,12 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 			}}
 			*/
 
-			//todo: handle Accept
+			// handle Accept
+			go func() {
+				acceptCtx := context.Background()
+				acceptClient(acceptCtx, &header.Accept)
+			}()
+
 			continue
 		}
 
@@ -272,7 +277,7 @@ func main() {
 		Path:    "yesclientauth",
 		Keyrule: "managepolicy",
 		Key:     "SkJUQP/1FTjT/Z0QcXwgUnqRUCnSimo9HORcyTxVtgE="}
-
+	wsConnections = make(map[string]*websocket.Conn)
 	fmt.Println("Starting...")
 
 	ctx := context.Background()
