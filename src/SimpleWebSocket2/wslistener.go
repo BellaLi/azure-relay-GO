@@ -71,6 +71,7 @@ func acceptClient(ctx context.Context, acceptMsg *acceptInner) {
 	c, hcID, _, err := relayConnect(ctx, acceptMsg)
 	if err != nil {
 		fmt.Printf("[%s] Unable to accept: %s \n", acceptMsg.ID, err.Error())
+		return
 	}
 
 	wsConnections[acceptMsg.ID] = c
