@@ -17,6 +17,7 @@ type acceptInner struct {
 	ID             string         `json:"id"`
 	Address        string         `json:"address"`
 	ConnectHeaders connectHeaders `json:"connectHeaders"`
+	RemoteEndpoint remoteEndpoint `json:"remoteEndpoint"`
 }
 
 // {"Sec-WebSocket-Key":"NsoFiXBuR3i2nE8Tx0+maA==","Sec-WebSocket-Version":"13","Connection":"Upgrade","Upgrade":"websocket",
@@ -28,6 +29,11 @@ type connectHeaders struct {
 	Upgrade             string `json:"Upgrade"`
 	Host                string `json:"Host"`
 	UserAgent           string `json:"User-Agent"`
+}
+
+type remoteEndpoint struct {
+	Address string `json:"address"`
+	Port    int32  `json:"port"`
 }
 
 type requestInner struct {
@@ -87,18 +93,27 @@ func relayConnect(ctx context.Context, acceptMsg *acceptInner) (con *websocket.C
 	var u string
 
 	headers := make(http.Header)
-	sbaHeaderName := "ServiceBusAuthorization"
-	sbaHeaderValue := relay.CreateRelaySASToken()
-	headers[sbaHeaderName] = []string{sbaHeaderValue}
 
 	if acceptMsg == nil {
 		hcID = uuid.New().String()
 		u = relay.GetRelayListenerURI(hcID)
+
+		sbaHeaderName := "ServiceBusAuthorization"
+		sbaHeaderValue := relay.CreateRelaySASToken()
+		headers[sbaHeaderName] = []string{sbaHeaderValue}
 	} else {
 		u = acceptMsg.Address
-		headers["Sec-WebSocket-Key"] = []string{acceptMsg.ConnectHeaders.SecWebSocketKey}
-		headers["Sec-WebSocket-Version"] = []string{acceptMsg.ConnectHeaders.SecWebSocketVersion}
+		// headers["sec-webSocket-key"] = []string{acceptMsg.ConnectHeaders.SecWebSocketKey}
+		// headers["sec-websocket-version"] = []string{acceptMsg.ConnectHeaders.SecWebSocketVersion}
+		// headers["host"] = []string{acceptMsg.ConnectHeaders.Host}
+		// headers["upgrade"] = []string{acceptMsg.ConnectHeaders.Upgrade}
+		// headers["connection"] = []string{acceptMsg.ConnectHeaders.Connection}
+		// headers["user-agent"] = []string{acceptMsg.ConnectHeaders.UserAgent}
+
+		re, _ := json.Marshal(acceptMsg.RemoteEndpoint)
+		headers["remoteEndpoint"] = []string{string(re)}
 	}
+	fmt.Println(u)
 
 	con, httpResp, err = websocket.DefaultDialer.DialContext(ctx, u, headers)
 	if err != nil {
@@ -208,6 +223,7 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 			return errors.New("Header message is not of expected type (text)")
 		}
 
+		// todo: parse websocket message
 		var header outer
 		err = json.Unmarshal(message, &header)
 		if err != nil {
