@@ -43,7 +43,7 @@ func (hyco hycoSender) GetRelayHTTPSURI(correlationID string) string {
 	}
 
 	u := url.URL{Scheme: "https", Host: hyco.ns, Path: hyco.path, RawQuery: query}
-	fmt.Println(u.String())
+	// fmt.Println(u.String())
 	return u.String()
 }
 
@@ -173,11 +173,11 @@ func (hyco hycoSender) ConnectRelayWS(sasToken string) {
 func (hyco hycoSender) CreateRelaySASToken() string {
 	var uri = url.URL{Scheme: "http", Host: hyco.ns, Path: hyco.path}
 	escapedURI := url.QueryEscape(uri.String())
-	fmt.Println("esapedURI: " + escapedURI)
+	// fmt.Println("esapedURI: " + escapedURI)
 
 	var unixSeconds = time.Now().Add(3600 * time.Second).Unix()
 	var unixSecStr = fmt.Sprintf("%v", unixSeconds)
-	fmt.Println("unixSeconds: " + unixSecStr)
+	// fmt.Println("unixSeconds: " + unixSecStr)
 
 	// The string-to-sign is a unique string constructed from the fields that must be verified in order to authorize the request.
 	// The signature is an HMAC computed over the string-to-sign and key using the SHA256 algorithm, and then encoded using Base64 encoding.
@@ -185,14 +185,14 @@ func (hyco hycoSender) CreateRelaySASToken() string {
 	var signature = encrypt(hyco.key, stringToSign)
 
 	token := "SharedAccessSignature sr=" + escapedURI + "&sig=" + url.QueryEscape(signature) + "&se=" + unixSecStr + "&skn=" + hyco.keyrule
-	fmt.Println("token: " + token)
+	// fmt.Println("token: " + token)
 
 	return token
 }
 
 func encrypt(key string, stringToSign string) string {
-	fmt.Println("key: ", key)
-	fmt.Println("stingToSign: ", stringToSign)
+	// fmt.Println("key: ", key)
+	// fmt.Println("stingToSign: ", stringToSign)
 
 	sig := hmac.New(sha256.New, []byte(key))
 	sig.Write([]byte(stringToSign))

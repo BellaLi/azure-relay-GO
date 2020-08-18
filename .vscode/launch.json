@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "C:\\github\\azure-relay-GO\\src\\SimpleHttp",
+            "program": "C:\\github\\azure-relay-GO\\src\\SimpleWebSocket2",
             "env": {},
             "args": []
         }

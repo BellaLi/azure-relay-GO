@@ -9,7 +9,7 @@ import (
 	"log"
 )
 
-func main() {
+func main2() {
 	log.SetFlags(0)
 
 	var client HYCOSender
