@@ -208,7 +208,7 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 		var err error
 
 		mt, message, err = c.ReadMessage()
-		fmt.Printf("Recv Type: %d. Message: %s", mt, message[:])
+		fmt.Printf("Recv Type: %d. Message: %s \n", mt, message[:])
 		if err != nil {
 			return errors.New("Error while reading header message on ws con#:" + err.Error())
 		}
@@ -223,11 +223,13 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 			return errors.New("Header message is not of expected type (text)")
 		}
 
-		// todo: parse websocket message
 		var header outer
 		err = json.Unmarshal(message, &header)
+
 		if err != nil {
-			return errors.New("Unable to decode request header. " + err.Error())
+			// todo: parse websocket message
+			wsReqHandler(message, respQ)
+			continue
 		}
 
 		var requestID string
@@ -281,6 +283,15 @@ func recieveMessages(ctx context.Context, c *websocket.Conn, hcID string) error 
 
 func httpReqHandler(r *requestInner, body []byte, w chan respEvent) {
 	var responseContent = fmt.Sprintf("Received: %s on %s with ID %s and body %s", r.Method, r.RequestTarget, r.ID, body)
+	resp := `{"echo":"` + responseContent + `"}`
+	fmt.Printf(resp)
+
+	w <- respEvent{websocket.BinaryMessage, resp}
+	return
+}
+
+func wsReqHandler(body []byte, w chan respEvent) {
+	var responseContent = fmt.Sprintf("%s", body)
 	resp := `{"echo":"` + responseContent + `"}`
 	fmt.Printf(resp)
 
